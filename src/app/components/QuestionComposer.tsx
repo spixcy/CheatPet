@@ -14,6 +14,7 @@ interface QuestionComposerProps {
   error?: string;
   onChange: (value: string) => void;
   onImage: (dataUrl: string, name: string) => void;
+  onCapture: () => void;
   onRemoveImage: () => void;
   onUseSelectedText: () => void;
   onGenerate: () => void;
@@ -31,6 +32,7 @@ export function QuestionComposer(props: QuestionComposerProps) {
     error,
     onChange,
     onImage,
+    onCapture,
     onRemoveImage,
     onUseSelectedText,
     onGenerate,
@@ -75,6 +77,9 @@ export function QuestionComposer(props: QuestionComposerProps) {
         onImage={onImage}
         onRemove={onRemoveImage}
       />
+      <button className="secondary-button" type="button" onClick={onCapture} disabled={isGenerating}>
+        <Icon name="image" size={16} /> Capture this tab
+      </button>
 
       <div className="composer-actions">
         <button className="secondary-button" type="button" onClick={onUseSelectedText}>

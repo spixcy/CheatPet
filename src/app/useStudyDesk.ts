@@ -13,6 +13,7 @@ function errorMessage(error: unknown): string {
 }
 
 export function useStudyDesk(surface: Surface) {
+  const SCREENSHOT_HANDOFF_KEY = "cheatpet.pendingScreenshot";
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [history, setHistory] = useState<PracticeRecord[]>([]);
   const [view, setView] = useState<AppView>(surface === "options" ? "settings" : "practice");
@@ -45,6 +46,26 @@ export function useStudyDesk(surface: Surface) {
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (surface !== "workspace") return;
+    const params = new URLSearchParams(window.location.search);
+    const sourceTabId = Number(params.get("sourceTabId"));
+    const captureId = params.get("captureId");
+    void chrome.storage.session.get(SCREENSHOT_HANDOFF_KEY).then(async (stored) => {
+      const handoff = stored[SCREENSHOT_HANDOFF_KEY] as { dataUrl?: string; sourceTabId?: number; windowId?: number; captureId?: string; capturedAt?: number } | undefined;
+      const fresh = !!handoff?.capturedAt && Date.now() - handoff.capturedAt < 5 * 60_000;
+      const validImage = typeof handoff?.dataUrl === "string" && /^data:image\/jpeg;base64,/.test(handoff.dataUrl) && handoff.dataUrl.length <= 5_700_000;
+      const matches = handoff?.sourceTabId === sourceTabId && handoff.captureId === captureId;
+      if (matches && fresh && validImage) {
+        setImageDataUrl(handoff.dataUrl);
+        setImageName("Captured practice page");
+        setQuestionSource("image");
+      }
+      if (matches || (handoff?.capturedAt && !fresh)) await chrome.storage.session.remove(SCREENSHOT_HANDOFF_KEY);
+      if (captureId && (!matches || !fresh || !validImage)) setError("That screenshot handoff is missing, expired, or invalid. Capture the page again from the toolbar popup.");
+    }).catch(() => setError("The captured screenshot could not be transferred. Capture again from the toolbar popup."));
+  }, [surface]);
 
   const runSettingsAction = useCallback(async (action: () => Promise<void>) => {
     setError("");
@@ -91,6 +112,38 @@ export function useStudyDesk(surface: Surface) {
     setImageName(name);
     setError("");
   }, []);
+
+  const captureScreenshot = useCallback(async () => {
+    setError("");
+    if (surface !== "popup") {
+      setError("To capture the practice page, open CheatPet from the toolbar while that page is active, then choose Capture This Tab.");
+      return;
+    }
+    try {
+      const [sourceTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (typeof sourceTab?.id !== "number" || typeof sourceTab.windowId !== "number") throw new Error("Could not verify the active source tab. Close other extension popups and try again.");
+      if (sourceTab.url?.startsWith("chrome://") || sourceTab.url?.startsWith("chrome-extension://")) throw new Error("Chrome does not allow capture from this page. Open a regular practice webpage first.");
+      const dataUrl = await chrome.tabs.captureVisibleTab(sourceTab.windowId, { format: "jpeg", quality: 82 });
+      const [stillActive] = await chrome.tabs.query({ active: true, windowId: sourceTab.windowId });
+      if (stillActive?.id !== sourceTab.id) throw new Error("The active tab changed during capture. No screenshot was transferred; try again on the intended page.");
+      if (dataUrl.length > 5_700_000) throw new Error("This viewport screenshot is too large. Zoom out or resize the browser and capture again.");
+      setImageDataUrl(dataUrl);
+      setImageName(`Visible tab · ${new Date().toLocaleTimeString()}`);
+      setQuestionSource("image");
+      setActiveRecord(undefined);
+      const captureId = crypto.randomUUID();
+      await chrome.storage.session.set({ [SCREENSHOT_HANDOFF_KEY]: { dataUrl, sourceTabId: sourceTab.id, windowId: sourceTab.windowId, captureId, capturedAt: Date.now() } });
+      const url = new URL(chrome.runtime.getURL("workspace.html"));
+      url.searchParams.set("sourceTabId", String(sourceTab.id));
+      url.searchParams.set("captureId", captureId);
+      await chrome.tabs.create({ url: url.toString() });
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message.includes("chrome://") || message.includes("Cannot access")
+        ? "Chrome does not allow screenshots of this page. Open an ordinary website and capture again."
+        : message);
+    }
+  }, [surface]);
 
   const useSelectedText = useCallback(async () => {
     setError("");
@@ -209,6 +262,7 @@ export function useStudyDesk(surface: Surface) {
     imageDataUrl,
     imageName,
     addImage,
+    captureScreenshot,
     removeImage: () => { setImageDataUrl(undefined); setImageName(undefined); },
     source,
     onQuestionChange: (value: string) => { setQuestion(value); setQuestionSource("manual"); },

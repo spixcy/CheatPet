@@ -30,7 +30,7 @@ async function readPreferences(): Promise<ProviderPreferences> {
 export async function readPublicSettings(): Promise<PublicSettings> {
   const [preferences, secret] = await Promise.all([
     readPreferences(),
-    chrome.storage.local.get(OPENAI_KEY_STORAGE_KEY),
+    chrome.storage.session.get(OPENAI_KEY_STORAGE_KEY),
   ]);
   return {
     ...preferences,
@@ -58,17 +58,17 @@ export async function saveOpenAIKey(apiKey: string): Promise<{ hasApiKey: true }
   if (normalizedKey.length < 8 || normalizedKey.length > 512) {
     throw new ProviderError("Enter a valid-length API key.", "missing-key");
   }
-  await chrome.storage.local.set({ [OPENAI_KEY_STORAGE_KEY]: normalizedKey });
+  await chrome.storage.session.set({ [OPENAI_KEY_STORAGE_KEY]: normalizedKey });
   return { hasApiKey: true };
 }
 
 export async function removeOpenAIKey(): Promise<{ hasApiKey: false }> {
-  await chrome.storage.local.remove(OPENAI_KEY_STORAGE_KEY);
+  await chrome.storage.session.remove(OPENAI_KEY_STORAGE_KEY);
   return { hasApiKey: false };
 }
 
 export async function getOpenAIKeyForRequest(): Promise<string> {
-  const stored = await chrome.storage.local.get(OPENAI_KEY_STORAGE_KEY);
+  const stored = await chrome.storage.session.get(OPENAI_KEY_STORAGE_KEY);
   const apiKey = stored[OPENAI_KEY_STORAGE_KEY];
   if (typeof apiKey !== "string" || !apiKey.trim()) {
     throw new ProviderError("Add an OpenAI API key in Settings first.", "missing-key");
@@ -78,5 +78,6 @@ export async function getOpenAIKeyForRequest(): Promise<string> {
 
 export async function clearAllExtensionData(): Promise<{ deleted: true }> {
   await chrome.storage.local.clear();
+  await chrome.storage.session.remove(OPENAI_KEY_STORAGE_KEY);
   return { deleted: true };
 }

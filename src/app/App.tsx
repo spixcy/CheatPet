@@ -37,6 +37,7 @@ export function App({ surface }: { surface: Surface }) {
                   error={desk.error}
                   onChange={desk.onQuestionChange}
                   onImage={desk.addImage}
+                  onCapture={() => void desk.captureScreenshot()}
                   onRemoveImage={desk.removeImage}
                   onUseSelectedText={() => void desk.useSelectedText()}
                   onGenerate={() => void desk.generate()}

@@ -13,13 +13,15 @@ import { ProviderError } from "../src/shared/providers/provider";
 
 function useFakeChromeStorage(): Record<string, unknown> {
   const data: Record<string, unknown> = {};
-  const local = {
-    get: async (key: string) => ({ [key]: data[key] }),
-    set: async (values: Record<string, unknown>) => Object.assign(data, values),
-    remove: async (key: string) => { delete data[key]; },
-    clear: async () => { for (const key of Object.keys(data)) delete data[key]; },
-  };
-  vi.stubGlobal("chrome", { storage: { local } });
+  const sessionData: Record<string, unknown> = {};
+  const makeArea = (area: Record<string, unknown>) => ({
+    get: async (key: string) => ({ [key]: area[key] }),
+    set: async (values: Record<string, unknown>) => Object.assign(area, values),
+    remove: async (key: string) => { delete area[key]; },
+    clear: async () => { for (const key of Object.keys(area)) delete area[key]; },
+    setAccessLevel: async () => undefined,
+  });
+  vi.stubGlobal("chrome", { storage: { local: makeArea(data), session: makeArea(sessionData) } });
   return data;
 }
 
@@ -31,7 +33,7 @@ describe("service worker settings storage", () => {
     await saveOpenAIKey("sk-test-secret-value");
     await saveProviderPreferences({ provider: "openai", model: "gpt-6-luna" });
 
-    expect(data[OPENAI_KEY_STORAGE_KEY]).toBe("sk-test-secret-value");
+    expect(data[OPENAI_KEY_STORAGE_KEY]).toBeUndefined();
     expect(data[SETTINGS_STORAGE_KEY]).toEqual({ provider: "openai", model: "gpt-6-luna" });
     expect(await readPublicSettings()).toEqual({ provider: "openai", model: "gpt-6-luna", hasApiKey: true });
   });

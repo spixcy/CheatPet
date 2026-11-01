@@ -5,13 +5,14 @@ import { ProviderError } from "../shared/providers/provider";
 import type { RuntimeReply, RuntimeRequest, RuntimeResponseMap } from "../shared/messages";
 import { isRuntimeRequest, isTrustedExtensionPage } from "./messageGuards";
 
-const storageAccessReady = chrome.storage.local
-  .setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" })
-  .then(() => true)
-  .catch(() => false);
+const storageAccessReady = Promise.all([
+  chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }),
+  chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }),
+]).then(() => true).catch(() => false);
 
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }).catch(() => undefined);
+  void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }).catch(() => undefined);
 });
 
 function failure<T>(code: string, message: string, retryable = false): RuntimeReply<T> {
