@@ -95,10 +95,19 @@ export function useStudyDesk(surface: Surface) {
   const useSelectedText = useCallback(async () => {
     setError("");
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (typeof tab?.id !== "number") throw new Error("No active browser tab is available. Open a practice page and try again.");
+      // A workspace tab cannot capture itself. When it is opened from the popup,
+      // keep the original tab id so the user-directed activeTab grant is used.
+      const sourceTabId = new URLSearchParams(window.location.search).get("sourceTabId");
+      const tabId = sourceTabId === null
+        ? surface === "popup"
+          ? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id
+          : undefined
+        : Number(sourceTabId);
+      if (typeof tabId !== "number" || !Number.isInteger(tabId)) {
+        throw new Error("Open Study Desk from the toolbar on the practice page, then expand the workspace to capture selected text.");
+      }
       const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId },
         func: () => window.getSelection()?.toString().trim() ?? "",
       });
       const selected = results[0]?.result?.trim() ?? "";
@@ -172,8 +181,18 @@ export function useStudyDesk(surface: Surface) {
   }, [refreshHistory]);
 
   const openWorkspace = useCallback(() => {
-    void chrome.tabs.create({ url: chrome.runtime.getURL("workspace.html") });
-  }, []);
+    void (async () => {
+      const url = new URL(chrome.runtime.getURL("workspace.html"));
+      if (surface === "popup") {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (typeof tab?.id === "number") url.searchParams.set("sourceTabId", String(tab.id));
+      } else {
+        const sourceTabId = new URLSearchParams(window.location.search).get("sourceTabId");
+        if (sourceTabId) url.searchParams.set("sourceTabId", sourceTabId);
+      }
+      await chrome.tabs.create({ url: url.toString() });
+    })().catch((reason: unknown) => setError(errorMessage(reason)));
+  }, [surface]);
 
   const openSettings = useCallback(() => setView("settings"), []);
   const openRecord = useCallback((record: PracticeRecord) => { setActiveRecord(record); setView("practice"); }, []);

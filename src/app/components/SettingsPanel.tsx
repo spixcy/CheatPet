@@ -23,30 +23,46 @@ export function SettingsPanel({ settings, busy, error, onSaveProvider, onSaveKey
   async function saveProvider(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice("");
-    await onSaveProvider(provider, model);
-    setNotice("Provider settings saved.");
+    try {
+      await onSaveProvider(provider, model);
+      setNotice("Provider settings saved.");
+    } catch {
+      // The parent displays the actionable error state.
+    }
   }
 
   async function saveKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice("");
-    await onSaveKey(apiKey);
-    setApiKey("");
-    setNotice("API key saved on this browser profile.");
+    try {
+      await onSaveKey(apiKey);
+      setApiKey("");
+      setNotice("API key saved on this browser profile.");
+    } catch {
+      // Keep the entered key available for correction or retry.
+    }
   }
 
   async function removeKey() {
     setNotice("");
-    await onRemoveKey();
-    setNotice("API key removed.");
+    try {
+      await onRemoveKey();
+      setNotice("API key removed.");
+    } catch {
+      // The parent displays the actionable error state.
+    }
   }
 
   async function deleteEverything() {
     if (!window.confirm("Delete the saved API key, provider settings, practice history, and saved explanations from this browser profile?")) return;
-    await onDeleteAll();
-    setApiKey("");
-    setProvider("openai");
-    setNotice("All CheatPet data was deleted from this browser profile.");
+    try {
+      await onDeleteAll();
+      setApiKey("");
+      setProvider("openai");
+      setNotice("All CheatPet data was deleted from this browser profile.");
+    } catch {
+      // The parent displays the actionable error state.
+    }
   }
 
   return (
