@@ -41,6 +41,7 @@ export function useStudyDesk(surface: Surface) {
         if (!mounted) return;
         setSettings(publicSettings);
         setHistory(records);
+        if (surface === "popup" && records[0]) setActiveRecord(records[0]);
       })
       .catch((reason: unknown) => { if (mounted) setError(errorMessage(reason)); })
       .finally(() => { if (mounted) setIsLoading(false); });
@@ -108,7 +109,7 @@ export function useStudyDesk(surface: Surface) {
     setError("");
   }, []);
 
-  const captureScreenshot = useCallback(async () => {
+  const captureScreenshot = useCallback(async (): Promise<string | undefined> => {
     setError("");
     if (surface !== "popup") {
       setError("To capture the practice page, open CheatPet from the toolbar while that page is active, then choose Capture This Tab.");
@@ -131,16 +132,15 @@ export function useStudyDesk(surface: Surface) {
       setActiveRecord(undefined);
       const captureId = crypto.randomUUID();
       await chrome.storage.session.set({ [SCREENSHOT_HANDOFF_KEY]: { dataUrl, sourceTabId: sourceTab.id, windowId: sourceTab.windowId, captureId, capturedAt: Date.now() } });
-      const url = new URL(chrome.runtime.getURL("workspace.html"));
-      url.searchParams.set("sourceTabId", String(sourceTab.id));
-      url.searchParams.set("captureId", captureId);
-      await chrome.tabs.create({ url: url.toString() });
+      await chrome.storage.session.remove(SCREENSHOT_HANDOFF_KEY);
+      return dataUrl;
     } catch (reason) {
       await chrome.storage.session.remove(SCREENSHOT_HANDOFF_KEY).catch(() => undefined);
       const message = errorMessage(reason);
       setError(message.includes("chrome://") || message.includes("Cannot access")
         ? "Chrome does not allow screenshots of this page. Open an ordinary website and capture again."
         : message);
+      return undefined;
     }
   }, [surface]);
 
@@ -176,14 +176,14 @@ export function useStudyDesk(surface: Surface) {
     }
   }, []);
 
-  const generate = useCallback(async (questionOverride?: string) => {
+  const generate = useCallback(async (questionOverride?: string, imageOverride?: string) => {
     if (!settings) return;
     setError("");
     const draft: QuestionDraft = {
       question: questionOverride ? parseQuestionInput(questionOverride).question : parsed.question || question.trim(),
       options: questionOverride ? parseQuestionInput(questionOverride).options : parsed.options,
-      source: imageDataUrl ? "image" : questionSource,
-      imageDataUrl,
+      source: imageOverride || imageDataUrl ? "image" : questionSource,
+      imageDataUrl: imageOverride ?? imageDataUrl,
       imageName,
     };
     const validationError = validateQuestionDraft(draft);

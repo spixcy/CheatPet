@@ -36,7 +36,7 @@ export function App({ surface }: { surface: Surface }) {
                   isGenerating={desk.isGenerating}
                   error={desk.error}
                   onChange={desk.onQuestionChange}
-                  onCapture={() => void desk.captureScreenshot()}
+                  onCapture={() => void desk.captureScreenshot().then((image) => { if (image) void desk.generate(undefined, image); })}
                   onRemoveImage={desk.removeImage}
                   onGenerate={() => void desk.generate()}
                   onOpenSettings={desk.openSettings}
