@@ -75,7 +75,7 @@ export function QuestionComposer(props: QuestionComposerProps) {
       </div>}
 
       <div className="composer-actions">
-        <button className="primary-button" type="submit" disabled={isGenerating}>
+        <button className="primary-button" type="submit" disabled={isGenerating || !imageDataUrl}>
           <Icon name="spark" size={16} />
           {isGenerating ? "Analyzing screen…" : hasApiKey ? imageDataUrl ? "Analyze screenshot" : "Capture a screenshot first" : "Set up OpenAI"}
         </button>

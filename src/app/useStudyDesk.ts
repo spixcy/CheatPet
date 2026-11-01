@@ -117,10 +117,13 @@ export function useStudyDesk(surface: Surface) {
     try {
       const [sourceTab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (typeof sourceTab?.id !== "number" || typeof sourceTab.windowId !== "number") throw new Error("Could not verify the active source tab. Close other extension popups and try again.");
+      const focusedBefore = await chrome.windows.getLastFocused();
+      if (focusedBefore.id !== sourceTab.windowId) throw new Error("The active browser window changed. Reopen CheatPet on the page you want to capture.");
       if (sourceTab.url?.startsWith("chrome://") || sourceTab.url?.startsWith("chrome-extension://")) throw new Error("Chrome does not allow capture from this page. Open a regular practice webpage first.");
       const dataUrl = await chrome.tabs.captureVisibleTab(sourceTab.windowId, { format: "jpeg", quality: 82 });
       const [stillActive] = await chrome.tabs.query({ active: true, windowId: sourceTab.windowId });
-      if (stillActive?.id !== sourceTab.id) throw new Error("The active tab changed during capture. No screenshot was transferred; try again on the intended page.");
+      const focusedAfter = await chrome.windows.getLastFocused();
+      if (stillActive?.id !== sourceTab.id || focusedAfter.id !== sourceTab.windowId) throw new Error("The active tab or window changed during capture. No screenshot was transferred; try again on the intended page.");
       if (dataUrl.length > 5_700_000) throw new Error("This viewport screenshot is too large. Zoom out or resize the browser and capture again.");
       setImageDataUrl(dataUrl);
       setImageName(`Visible tab · ${new Date().toLocaleTimeString()}`);
@@ -133,6 +136,7 @@ export function useStudyDesk(surface: Surface) {
       url.searchParams.set("captureId", captureId);
       await chrome.tabs.create({ url: url.toString() });
     } catch (reason) {
+      await chrome.storage.session.remove(SCREENSHOT_HANDOFF_KEY).catch(() => undefined);
       const message = errorMessage(reason);
       setError(message.includes("chrome://") || message.includes("Cannot access")
         ? "Chrome does not allow screenshots of this page. Open an ordinary website and capture again."
