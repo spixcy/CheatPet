@@ -6,6 +6,7 @@ import { Navigation } from "./components/Navigation";
 import { PracticeDisclosure } from "./components/PracticeDisclosure";
 import { QuestionComposer } from "./components/QuestionComposer";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { OperatingModePanel } from "./components/OperatingModePanel";
 import { useStudyDesk } from "./useStudyDesk";
 
 type Surface = "popup" | "workspace" | "options";
@@ -16,7 +17,7 @@ export function App({ surface }: { surface: Surface }) {
 
   return (
     <main className={`app-shell app-shell--${surface}`}>
-      <BrandHeader surface={surface} onSettings={desk.openSettings} onOpenWorkspace={surface === "popup" ? desk.openWorkspace : undefined} />
+      <BrandHeader surface={surface} hasApiKey={desk.settings?.hasApiKey ?? false} onSettings={desk.openSettings} onOpenWorkspace={surface === "popup" ? desk.openWorkspace : undefined} />
       {desk.isLoading ? (
         <div className="loading-state" role="status"><span className="loading-spinner" /> Preparing your Study Desk…</div>
       ) : (
@@ -24,9 +25,8 @@ export function App({ surface }: { surface: Surface }) {
           <Navigation activeView={desk.view} onSelect={desk.setView} />
           <div className="app-content">
             {desk.view === "practice" && (
-              resultIsVisible && desk.activeRecord ? (
-                <AnswerResult record={desk.activeRecord} onSave={(id) => void desk.toggleSaved(id)} onBack={desk.backToQuestion} />
-              ) : (
+              <OperatingModePanel result={resultIsVisible && desk.activeRecord ? <AnswerResult record={desk.activeRecord} onSave={(id) => void desk.toggleSaved(id)} onBack={desk.backToQuestion} /> : undefined}>
+                {!resultIsVisible && <>
                 <QuestionComposer
                   value={desk.question}
                   source={desk.source}
@@ -36,17 +36,15 @@ export function App({ surface }: { surface: Surface }) {
                   isGenerating={desk.isGenerating}
                   error={desk.error}
                   onChange={desk.onQuestionChange}
-                  onImage={desk.addImage}
                   onCapture={() => void desk.captureScreenshot()}
                   onRemoveImage={desk.removeImage}
-                  onUseSelectedText={() => void desk.useSelectedText()}
                   onGenerate={() => void desk.generate()}
                   onOpenSettings={desk.openSettings}
                 />
-              )
+                </>}
+              </OperatingModePanel>
             )}
             {desk.view === "history" && <HistoryList records={desk.history} savedOnly={false} onOpen={desk.openRecord} onSave={(id) => void desk.toggleSaved(id)} onDelete={(id) => void desk.removeRecord(id)} onPractice={desk.startPractice} />}
-            {desk.view === "saved" && <HistoryList records={desk.history} savedOnly onOpen={desk.openRecord} onSave={(id) => void desk.toggleSaved(id)} onDelete={(id) => void desk.removeRecord(id)} onPractice={desk.startPractice} />}
             {desk.view === "settings" && desk.settings && (
               <SettingsPanel
                 key={`${desk.settings.provider}-${desk.settings.model}`}

@@ -5,6 +5,7 @@ import { parseQuestionInput } from "../shared/parseQuestion";
 import { validateQuestionDraft } from "../shared/validateQuestion";
 import type { PracticeRecord, ProviderId, PublicSettings, QuestionDraft, QuestionSource } from "../shared/types";
 import type { AppView } from "./view";
+import { consumeScreenshotHandoff, SCREENSHOT_HANDOFF_KEY } from "../shared/screenshotHandoff";
 
 type Surface = "popup" | "workspace" | "options";
 
@@ -13,7 +14,6 @@ function errorMessage(error: unknown): string {
 }
 
 export function useStudyDesk(surface: Surface) {
-  const SCREENSHOT_HANDOFF_KEY = "cheatpet.pendingScreenshot";
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [history, setHistory] = useState<PracticeRecord[]>([]);
   const [view, setView] = useState<AppView>(surface === "options" ? "settings" : "practice");
@@ -52,18 +52,13 @@ export function useStudyDesk(surface: Surface) {
     const params = new URLSearchParams(window.location.search);
     const sourceTabId = Number(params.get("sourceTabId"));
     const captureId = params.get("captureId");
-    void chrome.storage.session.get(SCREENSHOT_HANDOFF_KEY).then(async (stored) => {
-      const handoff = stored[SCREENSHOT_HANDOFF_KEY] as { dataUrl?: string; sourceTabId?: number; windowId?: number; captureId?: string; capturedAt?: number } | undefined;
-      const fresh = !!handoff?.capturedAt && Date.now() - handoff.capturedAt < 5 * 60_000;
-      const validImage = typeof handoff?.dataUrl === "string" && /^data:image\/jpeg;base64,/.test(handoff.dataUrl) && handoff.dataUrl.length <= 5_700_000;
-      const matches = handoff?.sourceTabId === sourceTabId && handoff.captureId === captureId;
-      if (matches && fresh && validImage) {
+    void consumeScreenshotHandoff(chrome.storage.session, sourceTabId, captureId ?? "").then((handoff) => {
+      if (handoff) {
         setImageDataUrl(handoff.dataUrl);
         setImageName("Captured practice page");
         setQuestionSource("image");
       }
-      if (matches || (handoff?.capturedAt && !fresh)) await chrome.storage.session.remove(SCREENSHOT_HANDOFF_KEY);
-      if (captureId && (!matches || !fresh || !validImage)) setError("That screenshot handoff is missing, expired, or invalid. Capture the page again from the toolbar popup.");
+      if (captureId && !handoff) setError("That screenshot handoff is missing, expired, or invalid. Capture the page again from the toolbar popup.");
     }).catch(() => setError("The captured screenshot could not be transferred. Capture again from the toolbar popup."));
   }, [surface]);
 
@@ -177,12 +172,12 @@ export function useStudyDesk(surface: Surface) {
     }
   }, []);
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (questionOverride?: string) => {
     if (!settings) return;
     setError("");
     const draft: QuestionDraft = {
-      question: parsed.question || question.trim(),
-      options: parsed.options,
+      question: questionOverride ? parseQuestionInput(questionOverride).question : parsed.question || question.trim(),
+      options: questionOverride ? parseQuestionInput(questionOverride).options : parsed.options,
       source: imageDataUrl ? "image" : questionSource,
       imageDataUrl,
       imageName,

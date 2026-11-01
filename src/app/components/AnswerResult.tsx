@@ -29,8 +29,8 @@ export function AnswerResult({ record, onSave, onBack }: AnswerResultProps) {
       <p className="result-question">{record.question || "Question provided as an image"}</p>
 
       {record.recommendedLabels.length > 0 && (
-        <section className="recommendation-block" aria-label="Suggested choice">
-          <span className="recommendation-label">Suggested choice{record.recommendedLabels.length > 1 ? "s" : ""}</span>
+        <section className="recommendation-block" aria-label="AI suggested choice">
+          <span className="recommendation-label">AI suggested choice{record.recommendedLabels.length > 1 ? "s" : ""}</span>
           <div className="recommendation-chips">
             {record.recommendedLabels.map((label) => <span className="recommendation-chip" key={label}>{label}</span>)}
           </div>
